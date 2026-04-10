@@ -68,3 +68,45 @@ setup() {
     echo "Base URL: ${BASE_URL}" >&2
     echo ""
 }
+
+# ── HTTP helpers ──────────────────────────────────────────────────────────────
+# _run_curl METHOD URL DATA OUTPUT_FILE  →  prints http_code to stdout
+_run_curl() {
+    local method="$1" url="$2" data="$3" out="$4"
+    if [[ -n "$data" ]]; then
+        curl -s -o "$out" -w "%{http_code}" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H "Content-Type: application/json" \
+            -X "$method" -d "$data" "$url"
+    else
+        curl -s -o "$out" -w "%{http_code}" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -X "$method" "$url"
+    fi
+}
+
+# do_request METHOD URL [JSON_DATA]
+# Sets LAST_RESPONSE; prints "--- HTTP NNN ---" + body
+do_request() {
+    local method="$1"
+    local url="$2"
+    local data="${3:-}"
+    local tmp_body
+    tmp_body=$(mktemp)
+
+    local http_code
+    http_code=$(_run_curl "$method" "$url" "$data" "$tmp_body")
+
+    if [[ "$http_code" == "401" ]]; then
+        echo "(Token expired — refreshing...)"
+        refresh_token
+        http_code=$(_run_curl "$method" "$url" "$data" "$tmp_body")
+    fi
+
+    LAST_RESPONSE=$(cat "$tmp_body")
+    rm -f "$tmp_body"
+
+    echo "--- HTTP ${http_code} ---"
+    echo "${LAST_RESPONSE}"
+    echo ""
+}
