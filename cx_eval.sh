@@ -31,3 +31,25 @@ check_deps() {
         echo "WARNING: 'python3' not found. CSV export (options 29-31) will not work." >&2
     fi
 }
+
+# ── Auth & setup ──────────────────────────────────────────────────────────────
+refresh_token() {
+    TOKEN=$(gcloud auth print-access-token)
+}
+
+setup() {
+    echo ""
+    echo "=== CX Agent Studio Evaluations CLI ==="
+    echo ""
+    read -rp "Project ID: " PROJECT_ID
+    read -rp "Location [us]: " LOCATION
+    LOCATION="${LOCATION:-us}"
+    read -rp "App ID: " APP_ID
+    echo ""
+    echo "Fetching access token..."
+    refresh_token
+    BASE_URL="https://ces.googleapis.com/v1beta/projects/${PROJECT_ID}/locations/${LOCATION}/apps/${APP_ID}"
+    echo "Ready."
+    echo "Base URL: ${BASE_URL}"
+    echo ""
+}
