@@ -34,7 +34,14 @@ check_deps() {
 
 # ── Auth & setup ──────────────────────────────────────────────────────────────
 refresh_token() {
-    TOKEN=$(gcloud auth print-access-token)
+    TOKEN=$(gcloud auth print-access-token 2>&1) || {
+        echo "ERROR: Failed to fetch access token. Run 'gcloud auth login' and retry." >&2
+        exit 1
+    }
+    if [[ -z "$TOKEN" ]]; then
+        echo "ERROR: gcloud returned an empty token. Run 'gcloud auth login' and retry." >&2
+        exit 1
+    fi
 }
 
 setup() {
@@ -45,11 +52,19 @@ setup() {
     read -rp "Location [us]: " LOCATION
     LOCATION="${LOCATION:-us}"
     read -rp "App ID: " APP_ID
+    if [[ -z "$PROJECT_ID" ]]; then
+        echo "ERROR: Project ID cannot be empty." >&2
+        exit 1
+    fi
+    if [[ -z "$APP_ID" ]]; then
+        echo "ERROR: App ID cannot be empty." >&2
+        exit 1
+    fi
     echo ""
     echo "Fetching access token..."
     refresh_token
     BASE_URL="https://ces.googleapis.com/v1beta/projects/${PROJECT_ID}/locations/${LOCATION}/apps/${APP_ID}"
-    echo "Ready."
-    echo "Base URL: ${BASE_URL}"
+    echo "Ready." >&2
+    echo "Base URL: ${BASE_URL}" >&2
     echo ""
 }
