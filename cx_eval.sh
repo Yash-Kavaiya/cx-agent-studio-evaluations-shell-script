@@ -229,3 +229,21 @@ upload_evaluation_audio() {
     echo "${LAST_RESPONSE}"
     echo ""
 }
+
+# ── Evaluation Results (13–15) ───────────────────────────────────────────────
+list_eval_results() {
+    read -rp "Evaluation ID: " eval_id
+    do_request "GET" "${BASE_URL}/evaluations/${eval_id}/results"
+}
+
+get_eval_result() {
+    read -rp "Evaluation ID: " eval_id
+    read -rp "Result ID: " result_id
+    do_request "GET" "${BASE_URL}/evaluations/${eval_id}/results/${result_id}"
+}
+
+delete_eval_result() {
+    read -rp "Evaluation ID: " eval_id
+    read -rp "Result ID: " result_id
+    do_request "DELETE" "${BASE_URL}/evaluations/${eval_id}/results/${result_id}"
+}
