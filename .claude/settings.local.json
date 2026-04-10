@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/yashk/**)",
+      "Bash(bash)",
+      "Bash(python -c ':*)",
+      "Bash(bash \"C:/Users/yashk/Downloads/cx-agent-studio-evaluations-shell-script/cx_eval.sh\")",
+      "Bash(chmod +x \"C:/Users/yashk/Downloads/cx-agent-studio-evaluations-shell-script/cx_eval.sh\")"
+    ]
+  }
+}
