@@ -507,3 +507,109 @@ save_all_csv() {
     save_runs_csv "$output_dir"
     save_results_csv "$output_dir"
 }
+
+# ── Menu ──────────────────────────────────────────────────────────────────────
+show_menu() {
+    echo ""
+    echo "=== CX Agent Studio Evaluations CLI ==="
+    echo "Project: ${PROJECT_ID} | Location: ${LOCATION} | App: ${APP_ID}"
+    echo ""
+    echo "--- Scheduled Evaluation Runs ---"
+    echo "  1. List scheduled evaluation runs"
+    echo "  2. Get scheduled evaluation run"
+    echo "  3. Create scheduled evaluation run"
+    echo "  4. Patch scheduled evaluation run"
+    echo "  5. Delete scheduled evaluation run"
+    echo ""
+    echo "--- Evaluations ---"
+    echo "  6. List evaluations"
+    echo "  7. Get evaluation"
+    echo "  8. Create evaluation"
+    echo "  9. Patch evaluation"
+    echo " 10. Delete evaluation"
+    echo " 11. Export evaluations"
+    echo " 12. Upload evaluation audio"
+    echo ""
+    echo "--- Evaluation Results ---"
+    echo " 13. List evaluation results"
+    echo " 14. Get evaluation result"
+    echo " 15. Delete evaluation result"
+    echo ""
+    echo "--- Evaluation Runs ---"
+    echo " 16. List evaluation runs"
+    echo " 17. Get evaluation run"
+    echo " 18. Delete evaluation run"
+    echo ""
+    echo "--- Evaluation Datasets ---"
+    echo " 19. List evaluation datasets"
+    echo " 20. Get evaluation dataset"
+    echo " 21. Create evaluation dataset"
+    echo " 22. Patch evaluation dataset"
+    echo " 23. Delete evaluation dataset"
+    echo ""
+    echo "--- Evaluation Expectations ---"
+    echo " 24. List evaluation expectations"
+    echo " 25. Get evaluation expectation"
+    echo " 26. Create evaluation expectation"
+    echo " 27. Patch evaluation expectation"
+    echo " 28. Delete evaluation expectation"
+    echo ""
+    echo "--- Export to CSV ---"
+    echo " 29. Save evaluation runs to CSV"
+    echo " 30. Save evaluation results to CSV"
+    echo " 31. Save ALL to CSV (runs + results)"
+    echo ""
+    echo "  0. Exit"
+    echo ""
+}
+
+main() {
+    check_deps
+    setup
+
+    while true; do
+        show_menu
+        read -rp "Choice: " choice
+
+        case "$choice" in
+            1)  list_scheduled_runs ;;
+            2)  get_scheduled_run ;;
+            3)  create_scheduled_run ;;
+            4)  patch_scheduled_run ;;
+            5)  delete_scheduled_run ;;
+            6)  list_evaluations ;;
+            7)  get_evaluation ;;
+            8)  create_evaluation ;;
+            9)  patch_evaluation ;;
+            10) delete_evaluation ;;
+            11) export_evaluations ;;
+            12) upload_evaluation_audio ;;
+            13) list_eval_results ;;
+            14) get_eval_result ;;
+            15) delete_eval_result ;;
+            16) list_eval_runs ;;
+            17) get_eval_run ;;
+            18) delete_eval_run ;;
+            19) list_datasets ;;
+            20) get_dataset ;;
+            21) create_dataset ;;
+            22) patch_dataset ;;
+            23) delete_dataset ;;
+            24) list_expectations ;;
+            25) get_expectation ;;
+            26) create_expectation ;;
+            27) patch_expectation ;;
+            28) delete_expectation ;;
+            29) read -rp "Output directory [.]: " out_dir; save_runs_csv "${out_dir:-.}" ;;
+            30) read -rp "Output directory [.]: " out_dir; save_results_csv "${out_dir:-.}" ;;
+            31) read -rp "Output directory [.]: " out_dir; save_all_csv "${out_dir:-.}" ;;
+            0)  echo "Goodbye."; exit 0 ;;
+            *)  echo "Invalid option '${choice}', try again." ;;
+        esac
+
+        echo ""
+        read -rp "Press Enter to return to menu..." _
+    done
+}
+
+main
