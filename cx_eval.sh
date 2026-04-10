@@ -293,3 +293,36 @@ delete_dataset() {
     read -rp "Dataset ID: " id
     do_request "DELETE" "${BASE_URL}/evaluationDatasets/${id}"
 }
+
+# ── Evaluation Expectations (24–28) ──────────────────────────────────────────
+list_expectations() {
+    do_request "GET" "${BASE_URL}/evaluationExpectations"
+}
+
+get_expectation() {
+    read -rp "Expectation ID: " id
+    do_request "GET" "${BASE_URL}/evaluationExpectations/${id}"
+}
+
+create_expectation() {
+    read -rp "Display Name: " displayName
+    read -rp "LLM Criteria Instruction: " instruction
+    local body
+    body=$(printf '{"displayName":"%s","llmCriteria":{"instruction":"%s"}}' \
+        "$displayName" "$instruction")
+    do_request "POST" "${BASE_URL}/evaluationExpectations" "$body"
+}
+
+patch_expectation() {
+    read -rp "Expectation ID: " id
+    read -rp "Field to update (e.g. displayName): " field
+    read -rp "New value: " value
+    local body
+    body=$(printf '{"%s":"%s"}' "$field" "$value")
+    do_request "PATCH" "${BASE_URL}/evaluationExpectations/${id}?updateMask=${field}" "$body"
+}
+
+delete_expectation() {
+    read -rp "Expectation ID: " id
+    do_request "DELETE" "${BASE_URL}/evaluationExpectations/${id}"
+}
