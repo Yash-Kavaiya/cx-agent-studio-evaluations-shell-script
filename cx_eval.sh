@@ -144,3 +144,88 @@ delete_scheduled_run() {
     read -rp "Scheduled Run ID: " id
     do_request "DELETE" "${BASE_URL}/scheduledEvaluationRuns/${id}"
 }
+
+# ── Evaluations (6–12) ───────────────────────────────────────────────────────
+list_evaluations() {
+    do_request "GET" "${BASE_URL}/evaluations"
+}
+
+get_evaluation() {
+    read -rp "Evaluation ID: " id
+    do_request "GET" "${BASE_URL}/evaluations/${id}"
+}
+
+create_evaluation() {
+    read -rp "Display Name: " displayName
+    echo "Evaluation Type:"
+    echo "  1) GOLDEN"
+    echo "  2) SCENARIO"
+    read -rp "Choice [1]: " type_choice
+    local evaluationType
+    case "${type_choice:-1}" in
+        2) evaluationType="SCENARIO" ;;
+        *) evaluationType="GOLDEN" ;;
+    esac
+    local body
+    body=$(printf '{"displayName":"%s","evaluationType":"%s"}' "$displayName" "$evaluationType")
+    do_request "POST" "${BASE_URL}/evaluations" "$body"
+}
+
+patch_evaluation() {
+    read -rp "Evaluation ID: " id
+    read -rp "Field to update (e.g. displayName): " field
+    read -rp "New value: " value
+    local body
+    body=$(printf '{"%s":"%s"}' "$field" "$value")
+    do_request "PATCH" "${BASE_URL}/evaluations/${id}?updateMask=${field}" "$body"
+}
+
+delete_evaluation() {
+    read -rp "Evaluation ID: " id
+    do_request "DELETE" "${BASE_URL}/evaluations/${id}"
+}
+
+export_evaluations() {
+    echo "Export format:"
+    echo "  1) JSON"
+    echo "  2) CSV"
+    read -rp "Choice [1]: " fmt_choice
+    local format
+    case "${fmt_choice:-1}" in
+        2) format="CSV" ;;
+        *) format="JSON" ;;
+    esac
+    local body
+    body=$(printf '{"outputFormat":"%s"}' "$format")
+    do_request "POST" "${BASE_URL}/evaluations:export" "$body"
+}
+
+upload_evaluation_audio() {
+    read -rp "Evaluation ID: " id
+    read -rp "Local audio file path: " audio_path
+    if [[ ! -f "$audio_path" ]]; then
+        echo "ERROR: File not found: ${audio_path}" >&2
+        return
+    fi
+    local tmp_body
+    tmp_body=$(mktemp)
+    local http_code
+    http_code=$(curl -s -o "$tmp_body" -w "%{http_code}" \
+        -H "Authorization: Bearer ${TOKEN}" \
+        -F "audio=@${audio_path}" \
+        -X POST \
+        "${BASE_URL}/evaluations/${id}:uploadEvaluationAudio")
+    if [[ "$http_code" == "401" ]]; then
+        refresh_token
+        http_code=$(curl -s -o "$tmp_body" -w "%{http_code}" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -F "audio=@${audio_path}" \
+            -X POST \
+            "${BASE_URL}/evaluations/${id}:uploadEvaluationAudio")
+    fi
+    LAST_RESPONSE=$(cat "$tmp_body")
+    rm -f "$tmp_body"
+    echo "--- HTTP ${http_code} ---"
+    echo "${LAST_RESPONSE}"
+    echo ""
+}
