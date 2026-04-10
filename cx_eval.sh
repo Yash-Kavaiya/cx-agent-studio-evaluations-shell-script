@@ -110,3 +110,37 @@ do_request() {
     echo "${LAST_RESPONSE}"
     echo ""
 }
+
+# ── Scheduled Evaluation Runs (1–5) ──────────────────────────────────────────
+list_scheduled_runs() {
+    do_request "GET" "${BASE_URL}/scheduledEvaluationRuns"
+}
+
+get_scheduled_run() {
+    read -rp "Scheduled Run ID: " id
+    do_request "GET" "${BASE_URL}/scheduledEvaluationRuns/${id}"
+}
+
+create_scheduled_run() {
+    read -rp "Display Name: " displayName
+    read -rp "Cron Schedule (e.g. 0 9 * * 1): " cronSchedule
+    read -rp "Evaluation ID: " evaluationId
+    local body
+    body=$(printf '{"displayName":"%s","cronSchedule":"%s","evaluation":"%s/evaluations/%s"}' \
+        "$displayName" "$cronSchedule" "$BASE_URL" "$evaluationId")
+    do_request "POST" "${BASE_URL}/scheduledEvaluationRuns" "$body"
+}
+
+patch_scheduled_run() {
+    read -rp "Scheduled Run ID: " id
+    read -rp "Field to update (e.g. displayName): " field
+    read -rp "New value: " value
+    local body
+    body=$(printf '{"%s":"%s"}' "$field" "$value")
+    do_request "PATCH" "${BASE_URL}/scheduledEvaluationRuns/${id}?updateMask=${field}" "$body"
+}
+
+delete_scheduled_run() {
+    read -rp "Scheduled Run ID: " id
+    do_request "DELETE" "${BASE_URL}/scheduledEvaluationRuns/${id}"
+}
