@@ -247,3 +247,18 @@ delete_eval_result() {
     read -rp "Result ID: " result_id
     do_request "DELETE" "${BASE_URL}/evaluations/${eval_id}/results/${result_id}"
 }
+
+# ── Evaluation Runs (16–18) ──────────────────────────────────────────────────
+list_eval_runs() {
+    do_request "GET" "${BASE_URL}/evaluationRuns"
+}
+
+get_eval_run() {
+    read -rp "Evaluation Run ID: " id
+    do_request "GET" "${BASE_URL}/evaluationRuns/${id}"
+}
+
+delete_eval_run() {
+    read -rp "Evaluation Run ID: " id
+    do_request "DELETE" "${BASE_URL}/evaluationRuns/${id}"
+}
