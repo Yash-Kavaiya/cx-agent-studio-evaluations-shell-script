@@ -262,3 +262,34 @@ delete_eval_run() {
     read -rp "Evaluation Run ID: " id
     do_request "DELETE" "${BASE_URL}/evaluationRuns/${id}"
 }
+
+# ── Evaluation Datasets (19–23) ──────────────────────────────────────────────
+list_datasets() {
+    do_request "GET" "${BASE_URL}/evaluationDatasets"
+}
+
+get_dataset() {
+    read -rp "Dataset ID: " id
+    do_request "GET" "${BASE_URL}/evaluationDatasets/${id}"
+}
+
+create_dataset() {
+    read -rp "Display Name: " displayName
+    local body
+    body=$(printf '{"displayName":"%s"}' "$displayName")
+    do_request "POST" "${BASE_URL}/evaluationDatasets" "$body"
+}
+
+patch_dataset() {
+    read -rp "Dataset ID: " id
+    read -rp "Field to update (e.g. displayName): " field
+    read -rp "New value: " value
+    local body
+    body=$(printf '{"%s":"%s"}' "$field" "$value")
+    do_request "PATCH" "${BASE_URL}/evaluationDatasets/${id}?updateMask=${field}" "$body"
+}
+
+delete_dataset() {
+    read -rp "Dataset ID: " id
+    do_request "DELETE" "${BASE_URL}/evaluationDatasets/${id}"
+}
