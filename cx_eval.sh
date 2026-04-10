@@ -69,38 +69,51 @@ setup() {
     echo ""
 }
 
+# ── JSON helper ───────────────────────────────────────────────────────────────
+json_escape() {
+    local s="$1"
+    s="${s//\\/\\\\}"   # escape backslashes first
+    s="${s//\"/\\\"}"   # then escape double-quotes
+    printf '%s' "$s"
+}
+
 # ── HTTP helpers ──────────────────────────────────────────────────────────────
-# _run_curl METHOD URL DATA OUTPUT_FILE  →  prints http_code to stdout
+# _run_curl METHOD URL DATA OUTPUT_FILE [MODE]  →  prints http_code to stdout
 _run_curl() {
-    local method="$1" url="$2" data="$3" out="$4"
-    if [[ -n "$data" ]]; then
-        curl -s -o "$out" -w "%{http_code}" \
-            -H "Authorization: Bearer ${TOKEN}" \
-            -H "Content-Type: application/json" \
-            -X "$method" -d "$data" "$url"
+    local method="$1" url="$2" data="$3" out="$4" mode="${5:-json}"
+    local -a base_args=(-s -o "$out" -w "%{http_code}"
+        -H "Authorization: Bearer ${TOKEN}"
+        -X "$method")
+    if [[ "$mode" == "multipart" ]]; then
+        curl "${base_args[@]}" -F "$data" "$url"
+    elif [[ -n "$data" ]]; then
+        curl "${base_args[@]}" -H "Content-Type: application/json" -d "$data" "$url"
     else
-        curl -s -o "$out" -w "%{http_code}" \
-            -H "Authorization: Bearer ${TOKEN}" \
-            -X "$method" "$url"
+        curl "${base_args[@]}" "$url"
     fi
 }
 
-# do_request METHOD URL [JSON_DATA]
+# do_request METHOD URL [JSON_DATA] [MODE]
 # Sets LAST_RESPONSE; prints "--- HTTP NNN ---" + body
 do_request() {
     local method="$1"
     local url="$2"
     local data="${3:-}"
+    local mode="${4:-json}"
     local tmp_body
     tmp_body=$(mktemp)
 
     local http_code
-    http_code=$(_run_curl "$method" "$url" "$data" "$tmp_body")
+    http_code=$(_run_curl "$method" "$url" "$data" "$tmp_body" "$mode")
 
     if [[ "$http_code" == "401" ]]; then
         echo "(Token expired — refreshing...)"
         refresh_token
-        http_code=$(_run_curl "$method" "$url" "$data" "$tmp_body")
+        http_code=$(_run_curl "$method" "$url" "$data" "$tmp_body" "$mode")
+    fi
+
+    if [[ "$http_code" == "401" ]]; then
+        echo "ERROR: Authentication failed after token refresh. Run 'gcloud auth login'." >&2
     fi
 
     LAST_RESPONSE=$(cat "$tmp_body")
@@ -118,6 +131,7 @@ list_scheduled_runs() {
 
 get_scheduled_run() {
     read -rp "Scheduled Run ID: " id
+    [[ -z "$id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     do_request "GET" "${BASE_URL}/scheduledEvaluationRuns/${id}"
 }
 
@@ -127,21 +141,27 @@ create_scheduled_run() {
     read -rp "Evaluation ID: " evaluationId
     local body
     body=$(printf '{"displayName":"%s","cronSchedule":"%s","evaluation":"%s/evaluations/%s"}' \
-        "$displayName" "$cronSchedule" "$BASE_URL" "$evaluationId")
+        "$(json_escape "$displayName")" "$(json_escape "$cronSchedule")" "$BASE_URL" "$(json_escape "$evaluationId")")
     do_request "POST" "${BASE_URL}/scheduledEvaluationRuns" "$body"
 }
 
 patch_scheduled_run() {
     read -rp "Scheduled Run ID: " id
+    [[ -z "$id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     read -rp "Field to update (e.g. displayName): " field
+    if [[ ! "$field" =~ ^[a-zA-Z][a-zA-Z0-9.]*$ ]]; then
+        echo "ERROR: Field name must be alphanumeric (e.g. displayName, nested.field)." >&2
+        return
+    fi
     read -rp "New value: " value
     local body
-    body=$(printf '{"%s":"%s"}' "$field" "$value")
+    body=$(printf '{"%s":"%s"}' "$(json_escape "$field")" "$(json_escape "$value")")
     do_request "PATCH" "${BASE_URL}/scheduledEvaluationRuns/${id}?updateMask=${field}" "$body"
 }
 
 delete_scheduled_run() {
     read -rp "Scheduled Run ID: " id
+    [[ -z "$id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     do_request "DELETE" "${BASE_URL}/scheduledEvaluationRuns/${id}"
 }
 
@@ -152,6 +172,7 @@ list_evaluations() {
 
 get_evaluation() {
     read -rp "Evaluation ID: " id
+    [[ -z "$id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     do_request "GET" "${BASE_URL}/evaluations/${id}"
 }
 
@@ -167,21 +188,27 @@ create_evaluation() {
         *) evaluationType="GOLDEN" ;;
     esac
     local body
-    body=$(printf '{"displayName":"%s","evaluationType":"%s"}' "$displayName" "$evaluationType")
+    body=$(printf '{"displayName":"%s","evaluationType":"%s"}' "$(json_escape "$displayName")" "$evaluationType")
     do_request "POST" "${BASE_URL}/evaluations" "$body"
 }
 
 patch_evaluation() {
     read -rp "Evaluation ID: " id
+    [[ -z "$id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     read -rp "Field to update (e.g. displayName): " field
+    if [[ ! "$field" =~ ^[a-zA-Z][a-zA-Z0-9.]*$ ]]; then
+        echo "ERROR: Field name must be alphanumeric (e.g. displayName, nested.field)." >&2
+        return
+    fi
     read -rp "New value: " value
     local body
-    body=$(printf '{"%s":"%s"}' "$field" "$value")
+    body=$(printf '{"%s":"%s"}' "$(json_escape "$field")" "$(json_escape "$value")")
     do_request "PATCH" "${BASE_URL}/evaluations/${id}?updateMask=${field}" "$body"
 }
 
 delete_evaluation() {
     read -rp "Evaluation ID: " id
+    [[ -z "$id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     do_request "DELETE" "${BASE_URL}/evaluations/${id}"
 }
 
@@ -207,44 +234,30 @@ upload_evaluation_audio() {
         echo "ERROR: File not found: ${audio_path}" >&2
         return
     fi
-    local tmp_body
-    tmp_body=$(mktemp)
-    local http_code
-    http_code=$(curl -s -o "$tmp_body" -w "%{http_code}" \
-        -H "Authorization: Bearer ${TOKEN}" \
-        -F "audio=@${audio_path}" \
-        -X POST \
-        "${BASE_URL}/evaluations/${id}:uploadEvaluationAudio")
-    if [[ "$http_code" == "401" ]]; then
-        refresh_token
-        http_code=$(curl -s -o "$tmp_body" -w "%{http_code}" \
-            -H "Authorization: Bearer ${TOKEN}" \
-            -F "audio=@${audio_path}" \
-            -X POST \
-            "${BASE_URL}/evaluations/${id}:uploadEvaluationAudio")
-    fi
-    LAST_RESPONSE=$(cat "$tmp_body")
-    rm -f "$tmp_body"
-    echo "--- HTTP ${http_code} ---"
-    echo "${LAST_RESPONSE}"
-    echo ""
+    do_request "POST" "${BASE_URL}/evaluations/${id}:uploadEvaluationAudio" \
+        "audio=@${audio_path}" "multipart"
 }
 
 # ── Evaluation Results (13–15) ───────────────────────────────────────────────
 list_eval_results() {
     read -rp "Evaluation ID: " eval_id
+    [[ -z "$eval_id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     do_request "GET" "${BASE_URL}/evaluations/${eval_id}/results"
 }
 
 get_eval_result() {
     read -rp "Evaluation ID: " eval_id
+    [[ -z "$eval_id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     read -rp "Result ID: " result_id
+    [[ -z "$result_id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     do_request "GET" "${BASE_URL}/evaluations/${eval_id}/results/${result_id}"
 }
 
 delete_eval_result() {
     read -rp "Evaluation ID: " eval_id
+    [[ -z "$eval_id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     read -rp "Result ID: " result_id
+    [[ -z "$result_id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     do_request "DELETE" "${BASE_URL}/evaluations/${eval_id}/results/${result_id}"
 }
 
@@ -255,11 +268,13 @@ list_eval_runs() {
 
 get_eval_run() {
     read -rp "Evaluation Run ID: " id
+    [[ -z "$id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     do_request "GET" "${BASE_URL}/evaluationRuns/${id}"
 }
 
 delete_eval_run() {
     read -rp "Evaluation Run ID: " id
+    [[ -z "$id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     do_request "DELETE" "${BASE_URL}/evaluationRuns/${id}"
 }
 
@@ -270,27 +285,34 @@ list_datasets() {
 
 get_dataset() {
     read -rp "Dataset ID: " id
+    [[ -z "$id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     do_request "GET" "${BASE_URL}/evaluationDatasets/${id}"
 }
 
 create_dataset() {
     read -rp "Display Name: " displayName
     local body
-    body=$(printf '{"displayName":"%s"}' "$displayName")
+    body=$(printf '{"displayName":"%s"}' "$(json_escape "$displayName")")
     do_request "POST" "${BASE_URL}/evaluationDatasets" "$body"
 }
 
 patch_dataset() {
     read -rp "Dataset ID: " id
+    [[ -z "$id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     read -rp "Field to update (e.g. displayName): " field
+    if [[ ! "$field" =~ ^[a-zA-Z][a-zA-Z0-9.]*$ ]]; then
+        echo "ERROR: Field name must be alphanumeric (e.g. displayName, nested.field)." >&2
+        return
+    fi
     read -rp "New value: " value
     local body
-    body=$(printf '{"%s":"%s"}' "$field" "$value")
+    body=$(printf '{"%s":"%s"}' "$(json_escape "$field")" "$(json_escape "$value")")
     do_request "PATCH" "${BASE_URL}/evaluationDatasets/${id}?updateMask=${field}" "$body"
 }
 
 delete_dataset() {
     read -rp "Dataset ID: " id
+    [[ -z "$id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     do_request "DELETE" "${BASE_URL}/evaluationDatasets/${id}"
 }
 
@@ -301,6 +323,7 @@ list_expectations() {
 
 get_expectation() {
     read -rp "Expectation ID: " id
+    [[ -z "$id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     do_request "GET" "${BASE_URL}/evaluationExpectations/${id}"
 }
 
@@ -309,20 +332,26 @@ create_expectation() {
     read -rp "LLM Criteria Instruction: " instruction
     local body
     body=$(printf '{"displayName":"%s","llmCriteria":{"instruction":"%s"}}' \
-        "$displayName" "$instruction")
+        "$(json_escape "$displayName")" "$(json_escape "$instruction")")
     do_request "POST" "${BASE_URL}/evaluationExpectations" "$body"
 }
 
 patch_expectation() {
     read -rp "Expectation ID: " id
+    [[ -z "$id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     read -rp "Field to update (e.g. displayName): " field
+    if [[ ! "$field" =~ ^[a-zA-Z][a-zA-Z0-9.]*$ ]]; then
+        echo "ERROR: Field name must be alphanumeric (e.g. displayName, nested.field)." >&2
+        return
+    fi
     read -rp "New value: " value
     local body
-    body=$(printf '{"%s":"%s"}' "$field" "$value")
+    body=$(printf '{"%s":"%s"}' "$(json_escape "$field")" "$(json_escape "$value")")
     do_request "PATCH" "${BASE_URL}/evaluationExpectations/${id}?updateMask=${field}" "$body"
 }
 
 delete_expectation() {
     read -rp "Expectation ID: " id
+    [[ -z "$id" ]] && { echo "ERROR: ID cannot be empty." >&2; return; }
     do_request "DELETE" "${BASE_URL}/evaluationExpectations/${id}"
 }
